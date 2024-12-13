@@ -1,0 +1,274 @@
+---
+title: "Natural Selection on Beak Depth: A Study of Medium Ground Finches on Daphne Major"
+format: 
+  html:
+    toc: true
+    toc-depth: 3
+    toc-float: true
+    code-fold: true
+execute:
+  echo: true
+bibliography: export.bib
+---
+
+### Load required packages
+
+```{r}
+#| message: false
+#| warning: false
+
+library(Sleuth3)
+library(ggplot2)
+library(dplyr)
+library(car)
+library(quantreg)
+library(ggsignif)
+library(broom)
+library(knitr)
+library(kableExtra)
+library(caret)
+library(lsr)
+library(here)
+```
+
+
+### Source required functions 
+```{r}
+#See function details in function files 
+source(here("Functions/Summary.R"))
+source(here("Functions/AssumptionCheck.R"))
+source(here("Functions/Table.R"))
+```
+
+# [Introduction]{.underline}
+
+::: important-box
+This analysis aims to investigate whether the beak depth of the medium ground finch (Geospiza fortis) underwent natural selection during a severe drought on the 40-ha islet Daphne Major in 1977. Daphne Major received only 24 mm of rainfall, compared to over 120 mm in prior years, leading to an 85% decline in the medium ground finch population [@Boag1981]. Small seeds became scarce, potentially favoring Finches with larger beaks who could crack open larger seeds. Beak depth data from before (1976) and after (1978) the drought are analysed to determine if there is a significant difference, thereby assessing whether adaptation to changes in food availability occurred.
+:::
+
+:::: hypothesis
+::: {style="border: 2px solid #000; padding: 10px; background-color: #f9f9f9; border-radius: 5px;"}
+**H₀:** There is no significant difference in beak depth between 1976 and 1978.
+
+**H₁:** There is a significant difference in beak depth between 1976 and 1978.
+:::
+::::
+
+# [Methods]{.underline} - Statistical analyses
+
+::: important-box
+The data, sourced from the Sleuth3 R package (case0201), includes beak depths (in mm) of 178 finches, 89 measured in 1976 (pre-drought) and 89 measured in 1978 (post-drought). A fixed linear model was used to compare mean beak depths between years. Residual and QQ plots were utilised to evaluate model assumptions, revealing that the data satisfied the homoscedasticity assumption (confirmed by the Levene test) but violated the normality assumption (confirmed by the Shapiro-Wilk test). Transforming the data using the Box-Cox transformation corrected the left skew and stabilised variance, ensuring all assumptions were met for the analysis. A one-way ANOVA was then performed to assess whether the mean beak depths were significantly different between 1976 and 1978, with significance determined at α=0.05.
+:::
+
+## 1. Understanding the data
+
+### Viewing the data set
+
+```{r}
+head(case0201)
+```
+
+### Summary statistics (mean and SD)
+
+```{r}
+#Run thesummarise function to get the mean and standard deviation of Beak Depth. 
+summarise_data(case0201, "Year", "Depth", "Table 1: Summary Statistics of Beak Depth (mm) by Year") 
+```
+
+### Descriptive plot of the data
+
+```{r}
+#| fig-align: center
+
+# Turn the categorical variable into a factor 
+year <- factor(case0201$Year) # Convert the 'Year' column in 'case0201' data to a factor for categorical analysis
+
+# Plot the data
+ggplot(case0201, aes(x = year, y = Depth, fill = year, color = year)) +
+  geom_boxplot(alpha = 0.8) +  # Boxplot with transparency
+  geom_jitter(width = 0.2, alpha = 0.8) +  # Jittered points with slight transparency
+  labs(
+    title = "Beak Depths of Darwin Finches in 1976 and 1978",
+    x = "Year",
+    y = "Beak Depth (mm)",
+    caption = "Figure 1: A boxplot comparing the beak depths of the medium ground finch measured in 1976 (before the drought) and \n 1978 (after the drought), displaying all individual data points"
+  ) +  
+  theme(
+    legend.position = "none",  # Remove legend
+    plot.caption = element_text(hjust = 0)  # Move caption text to the left
+  )
+
+```
+
+The graph and the summary statistics show that beak Depth is on average higher in 1978 than 1976 which is a potential signal of natural selection. Further statistical analysis is needed to determine if the observed differences are statistically significant.
+
+## 2. Generating the Linear model
+
+```{r}
+Finch_model <- lm(Depth ~ year, data = case0201) #Creating a fixed linear model with year as the explanatory variable and Depth as the response variable.  
+
+```
+
+### Checking the model assumptions: Graphical assessment
+
+```{r}
+#| fig-align: center
+#Run The Assumption check function to generate a residual plot and a qq plot 
+Assumption_check(Finch_model, "Figure 2: The evenness of the residual spread in the two clusters (years) suggests no \n violation of homoscedasticity.\n Figure 3: The deviation of the data points from the diagonal line in the Normal Q-Q plot indicates \n violations of normality with a left skew.") #See function details in function file 
+```
+
+### Checking assumptions: Statistical assessment
+
+The Levene's Test for Homogeneity of Variance confirmed that the assumption of homoscedasticity was satisfied, as the test result was not statistically significant (P \> 0.05). However, the Shapiro-Wilk test for normality indicated a significant deviation from normality (P \< 0.05). The assumptions of the linear model were violated, necessitating a transformation of the data.
+
+```{r}
+#Perform the Shapiro-Wilk Test and the Levene's Test, then create a data frame with the results 
+results_table <- list(
+  Shapiro_Wilk = shapiro.test(case0201$Depth),
+  Levene = leveneTest(Depth ~ year, data = case0201)
+) %>% # Carry out the tests 
+  {
+    data.frame( #Create a data frame with the results 
+      Test = c("Shapiro-Wilk", "Levene's Test"),
+      Statistic = c(round(.$Shapiro_Wilk$statistic, 4), round(.$Levene$`F value`[1], 4)), #Extract Test statistic and round to 4.d.p.
+      P_Value = c(
+        round(.$Shapiro_Wilk$p.value, 4),
+        round(.$Levene$`Pr(>F)`[1], 4) #Extract P values and round to 4.d.p. 
+      )
+    )
+  }
+
+#Apply function to display the results table 
+create_styled_table(results_table, c("Test", "Test Statistic", "P-Value"), "Table 3: Test Results for Shapiro-Wilk and Levene's Test") #Function details in function file 
+
+
+
+```
+
+### Transforming the data
+
+I used the Box Cox transformation to overcome the left skew, and re-assessed the assumptions.
+```{r}
+# Set up the Box Cox transformation -> This function learns the optimal transformation (lambda) to make the data more normal, but it doesn't actually transform it. 
+bc_trans <- BoxCoxTrans(case0201$Depth) 
+
+# Apply the Box-Cox transformation to the 'Depth' data and create a new column with the transformed data
+case0201_new <- case0201 %>%
+  mutate(TransformedDepth = predict(bc_trans, case0201$Depth)) 
+
+#Re-fit the linear model 
+Finch_model_2 <- lm(TransformedDepth ~ year, data = case0201_new) 
+```
+
+### Checking assumptions: Graphical assessment
+
+The residual plot suggests that there are no violations of homoscedasticity, while the Q-Q plot reveals a slight deviation from normality. A statistical test is necessary to determine whether this deviation is statistically significant. 
+
+```{r}
+#| fig-align: center
+#Run The Assumption check function to generate a residual plot and a qq plot 
+Assumption_check(Finch_model_2, "Figure 4: The evenness of the residual spread in the two clusters (years) suggests no \n violation of Homoscedasticity\n Figure 5: Slight deviation of the data points from the diagonal line in the Normal Q-Q plot \n  indicates a violations of normality.") #See function file for details 
+```
+
+### Checking assumptions: Statistical assessment
+
+Both statistical tests indicate no violation of assumptions.
+
+```{r}
+#Perform the Shapiro-Wilk Test and the Levene's Test, then create a data frame with the results 
+results_table <- list(
+  Shapiro_Wilk = shapiro.test(case0201_new$TransformedDepth),
+  Levene = leveneTest(TransformedDepth ~ year, data = case0201_new)
+) %>% #Carry out the tests 
+  {
+    data.frame( #Create a data frame with the results 
+      Test = c("Shapiro-Wilk", "Levene's Test"),
+      Statistic = c(round(.$Shapiro_Wilk$statistic, 3), round(.$Levene$`F value`[1], 3)), #Extract Test statistic and round to 3.d.p.
+      P_Value = c(
+        round(.$Shapiro_Wilk$p.value, 3),
+        round(.$Levene$`Pr(>F)`[1], 3) #Extract P values and round to 3.d.p. 
+      )
+    )
+  }
+
+#Apply function to display the results table 
+create_styled_table(results_table, c("Test", "Test Statistic", "P-Value"), "Table 3: Test Results for Shapiro-Wilk and Levene's Test") #Function details in function file 
+```
+
+## 4. ANOVA
+
+I conducted a one-way ANOVA on the transformed data to test whether there was a significant difference in the mean beak depth between 1976 (before the drought) and 1978 (after the drought).
+
+```{r}
+# Perform the anova and format the results 
+anova_table <- Anova(Finch_model_2) %>% #Perform the ANOVA 
+  as.data.frame() %>% #Turn the results into a data frame
+  setNames(c("Sum Sq", "Df", "F Value", "P-Value")) %>% #Set the names of the values created 
+  dplyr::mutate(`P-Value` = formatC(`P-Value`, format ='f', digits = 6)) #Mutate the P value to have 6 d.p., or it would display as 0. 
+#Apply function to display the results table 
+create_styled_table(anova_table, c("Sum Sq", "Df", "F Value", "P-Value"), "Table 4: ANOVA Results") #Function details in function file 
+
+```
+
+## 5. Biological significance
+I calculated the eta squared to measure the biological significance of the result. 
+
+```{r}
+# Calculate eta squared 
+eta_sq_result <- etaSquared(Finch_model_2, type = 2, anova = FALSE)
+
+# Convert the result to a data frame for easy display
+eta_table <- data.frame(
+  Effect = "Eta Squared",  # Label for the effect
+  Value = round(eta_sq_result[1], 3)  # Extract and round the first eta squared value
+)
+
+#Apply function to display the results table 
+create_styled_table(eta_table, c(), "Table 5: Eta Squared for Biological Significance") #Function details in function file 
+
+
+```
+
+# [Results]{.underline}
+
+::: important-box
+The mean beak depth increased from 9.47mm (SD= 1.04) in 1976 to 10.14 (SD = 0.91) in 1978. This was confirmed to be statistically significant by a one-way ANOVA on data transformed using the Box- Cox transformation (F(1, 176) = 22.09, p \< 0.001). Figure 6 visually illustrates this significant change in cubed beak depths, with the 1978 group showing an upward shift compared to 1976. This result also shows moderate - strong biological significance with 11% (Eta2 = 0.11) of the variation in beak depth explained by the year (drought).
+:::
+
+```{r}
+#| fig-align: center
+
+ggplot(case0201_new, aes(x = year, y = TransformedDepth, fill = year, color = year)) +
+  geom_boxplot(alpha = 0.8) +  # Boxplot with transparency
+  labs(
+    title = "Beak Depths of Darwin Finches in 1976 and 1978",
+    subtitle = "ANOVA, F(1, 176) = 22.09, p < 0.00001",  # Add ANOVA results to the subtitle
+    x = "Year",
+    y = "Cubed Beak Depth (mm)",
+    caption = "Figure 6: A boxplot illustrating the beak depths of the medium ground finch measured in 1976 (before the drought) \n and 1978 (after the drought). ANOVA analysis revealed a statistically significant increase in beak depth between \n the two years."
+  ) + #Addition of captions 
+  geom_signif(
+    comparisons = list(c("1976", "1978")), 
+    map_signif_level = TRUE,
+    textsize = 4,
+    tip_length = 0.02,
+    color = "black"  # Add significane line and set the color to black
+  ) + 
+  theme(
+    legend.position = "none",  # Remove legend
+    plot.caption = element_text(hjust = 0)  # Move caption text to the left
+  )
+```
+
+# [Conclusion]{.underline}
+
+::: important-box
+In conclusion, the null hypothesis can be rejected, as the results indicate a statistical and biologically significant increase in mean beak depth between 1976 and 1978. This finding is consistent with natural selection favoring finches with larger beaks as an adaptive response to the scarcity of small seeds and the prevalence of large seeds during the drought. This explanation assumes that beak depth is heritable, which was confirmed by a quantitative genetic analysis showing a heritability estimate of 0.74 in the medium ground finch population [@Grant1991]. Documented cases of natural selection driving phenotypic adaptation in avian populations are rare, due to birds' physiological flexibility, low reproductive rates, and long generation times making this result notable [@Boag1981]. The results highlight how occasional bottlenecks of intense selection can significantly shape the trajectory of a species, driving rapid morphological evolution. This provides insights into the mechanisms behind adaptive radiations. However, adaptation to seed availability is not the only explanation for the observed changes in beak depth. Larger birds may have had higher survival rates due to their ability to dominate smaller finches during social interactions, securing better access to limited food resources. Body size correlates with beak depth, so this selective force would also lead to an increase in beak depth. Future analyses should examine the association between year and other traits (e.g. body size) to confirm the selective force driving the increase in beak depth. 
+:::
+
+### References
+
+::: {#refs}
+:::
+
+
