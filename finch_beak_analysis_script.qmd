@@ -271,4 +271,9 @@ In conclusion, the null hypothesis can be rejected, as the results indicate a st
 ::: {#refs}
 :::
 
+## Git Hub link 
+
+I have realised that to run my functions, the function files are required. Here is the link to the project on GitHub, where the files can be found. 
+
+https://github.com/Anonymous94394/FinchAnalysis-.git
 
